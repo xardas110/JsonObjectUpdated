@@ -11,10 +11,22 @@ std::set<char> WHITESPACE_CHARS1{
 };
 int main()
 {
-	Json j;
-	j = Json::JObject({ {"Ali", 234}, {"abc", 456} });
-	j = Json::JArray({ 465,"Ali",456,345.f, {{"Ali",456}} });
-	//j = { 345, 4657, 47567657, "ali", {"Ali", 4564} };
-	std::cout << j.Stringify();
+	Json j(Json::Type::Object);
+	j.Set("Events", Json::Type::Object);
+	j["Events"].Set("Shoot", { 3, 4 });
+	j["Events"].Set("ShipLocations", Json::Type::Array);
+	j["Events"]["ShipLocations"].Add({ 6.f,5.f });
+	j["Events"]["ShipLocations"].Add({ 45.f,6.f });
+	j["Events"]["ShipLocations"].Add({ 45646.f,435646.f });
+	j["Events"]["ShipLocations"].Add({ true,false });
+	for (const auto& val: j["Events"]["ShipLocations"])
+	{
+		float x = val.Value()[0];
+		float y = val.Value()[1];
+		std::cout << x << " " << y << std::endl;
+	}
+	j.Save("Table");
+	j.Load("Table.json");
+	j.Print();
 }
 

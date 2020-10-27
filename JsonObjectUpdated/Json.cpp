@@ -1,5 +1,6 @@
 #include "Json.h"
 #include <iostream>
+#include <fstream>
 
 std::set<char> WHITESPACE_CHARS{
 	' ',
@@ -77,6 +78,11 @@ Json::Json(const std::string& str)
 Json::Json(std::initializer_list<std::pair<const std::string, const Json>> args)
 {
 	*this = JObject(args);
+}
+
+Json::Json(JsonArrayWrapper args)
+{
+	*this = JArray(args.jArray);
 }
 
 Json::~Json() noexcept = default;
@@ -180,7 +186,7 @@ Json Json::JObject(std::initializer_list<std::pair<const std::string, const Json
 	return result;
 }
 
-Json Json::JArray(std::initializer_list<Json> args)
+Json Json::JArray(std::initializer_list<const Json> args)
 {
 	Json result(Type::Array);
 	for (const auto& arg: args)
@@ -188,6 +194,166 @@ Json Json::JArray(std::initializer_list<Json> args)
 		result.Add(arg);
 	}
 	return result;
+}
+
+size_t Json::FindExt(const std::string& text, const std::string& delimiter)
+{
+	for (size_t i = 0; i < text.length(); i++)
+	{
+		bool bResult = true;
+		const auto ch1 = text[i];
+		const auto ch2 = delimiter[0];
+		if (ch1 != ch2)
+			continue;
+		for (size_t j = 0, r = i; j < delimiter.length() || r < text.length(); j++, r++)
+		{
+			const auto chA = delimiter[j];
+			const auto chB = text[r];
+			if (chA != chB)
+			{
+				bResult = false;
+				i = r-1;
+				break;
+			}
+		}
+		if (!bResult)
+			continue;
+		return i;
+	}
+	return 0;
+}
+
+void Json::Save(const std::string& path)
+{
+	std::ofstream os;
+	std::string newPath = path;
+	if (!Json::FindExt(newPath, ".json"))
+		newPath += ".json";
+	os.open(newPath);
+	assert(os.is_open());
+	const auto& ref = (*this).Stringify();
+	os.write(ref.c_str(), strlen(ref.c_str()));
+	os.close();
+}
+
+Json Json::Load(const std::string& path)
+{
+	std::ifstream is;
+	is.open(path);
+	assert(is.is_open());
+	std::string buffer{ "" };
+	std::string text{ "" };
+	while (!is.eof())
+	{
+		std::getline(is, buffer);
+		text += buffer;
+	}
+	is.close();
+	return Json::Parse(text);
+}
+
+void Json::Print() const
+{
+	std::string Text{ "" }; size_t nextOff{ 2 };
+	switch (GetType())
+	{
+	case Type::Null:
+		Text += "null";
+		break;
+	case Type::Int:
+		Text += std::to_string(var_->intVal);
+		break;
+	case Type::Float:
+		Text += std::to_string(var_->floatVal);
+		break;
+	case Type::Bool:
+		Text += var_->boolVal ? "true" : "false";
+		break;
+	case Type::String:
+		Text += '\"' + *var_->stringVal + '\"';
+		break;
+	case Type::Array:
+		Text += "[\n";
+		for (const auto& val: *this)
+		{ 
+			Text += "  ";
+			Json::PrintS(Text, nextOff, val.Value());
+			Text += ",\n";
+		}
+		Text.pop_back();
+		Text.pop_back();
+		Text += "\n]";
+		break;
+	case Type::Object:
+		Text += "{\n";
+		for (const auto& val : *this)
+		{
+			Text += "  \"" + val.Key() + '\"' + ": ";
+			Json::PrintS(Text, nextOff, val.Value());
+			Text += ",\n";
+		}
+		Text.pop_back();
+		Text.pop_back();
+		Text += "\n}";
+		break;
+	default:
+		break;
+	}
+	std::cout << Text << std::endl;
+}
+
+void Json::PrintS(std::string& text, size_t& offset, const Json& json)
+{
+	size_t off = offset+2;
+	switch (json.GetType())
+	{
+	case Type::Null:
+		text += "null";
+		break;
+	case Type::Int:
+		text += std::to_string(json.var_->intVal);
+		break;
+	case Type::Float:
+		text += std::to_string(json.var_->floatVal);
+		break;
+	case Type::Bool:
+		text += json.var_->boolVal ? "true" : "false";
+		break;
+	case Type::String:
+		text += '\"' + *json.var_->stringVal + '\"';
+		break;
+	case Type::Array:
+		text += '\n';
+		for (size_t i = 0; i < offset; i++) text.push_back(' ');
+		text += '[';
+		for (const auto& val : json)
+		{
+			text += '\n';
+			for (size_t i = 0; i < off; i++) text.push_back(' ');
+			PrintS(text, off, val.Value()); text += ',';
+		}
+		text += '\n';
+		for (size_t i = 0; i < offset; i++) text.push_back(' ');
+		text += ']';
+		offset += 2;
+		break;
+	case Type::Object:
+		text += '{';
+		for (auto& val : json)
+		{
+			text += '\n';
+			for (size_t i = 0; i < off; i++) text.push_back(' ');
+			text += '\"' + val.Key() + '\"' + ": ";
+			PrintS(text, off, val.Value()); text += ',';
+		}
+		text += '\n';
+		for (size_t i = 0; i < offset; i++) text.push_back(' ');
+		text += '}';
+		offset += 2;
+		break;
+	default:
+		break;
+	}	
 }
 
 auto Json::begin() const -> Iterator
@@ -211,6 +377,9 @@ const std::string Json::Stringify()
 	std::string result;
 	switch (GetType())
 	{
+	case Type::Null:
+		result += "null";
+		break;
 	case Type::Int:
 		for (const auto &ch: std::to_string(var_->intVal))
 		{
@@ -247,7 +416,8 @@ const std::string Json::Stringify()
 			result += encVal;
 			result.push_back(',');
 		}
-		result.pop_back();
+		if (result[result.length() - 1] == ',')
+			result.pop_back();
 		result.push_back(']');
 		break;
 	case Type::Object:
@@ -258,7 +428,8 @@ const std::string Json::Stringify()
 			result += obj.second.Stringify();
 			result.push_back(',');
 		}
-		result.pop_back();
+		if (result[result.length()-1] == ',')
+			result.pop_back();
 		result.push_back('}');
 		break;
 	default:
@@ -276,12 +447,18 @@ Json Json::Parse(const std::string& js)
 	const auto ch = fixed[0];
 	const auto chL = fixed[fixed.length() - 1];
 
-	const std::string str(fixed.begin() + 1, fixed.end() - 1);
+	std::string str{};
+	if (fixed.length() > 1)
+		str = std::string(fixed.begin() + 1, fixed.end() - 1);
+	else str = ch;
+
 	switch (ch)
 	{
 		case '{': if (chL == '}') result.var_->ParseAsObject(str); break;	
 		case '[': if (chL == ']') result.var_->ParseAsArray(str); break;		
-		case '"': if (chL == '"' && js.length() > 1) result = str; break;
+		case '"': if (chL == '"' && js.length() > 1) 
+			result.var_->type = Type::String; 
+			result.var_->stringVal = new std::string(str); break;		
 		default:
 		if (fixed == "true")
 		{
@@ -293,6 +470,10 @@ Json Json::Parse(const std::string& js)
 			result.var_->type = Type::Bool;
 			result.var_->boolVal = false;
 		}
+		else if (fixed == "null")
+		{
+			result.var_->type = Type::Null;
+		}
 		else if (fixed.find_first_of('.') != UINT32_MAX)
 		{
 			result.var_->ParseAsFloat(fixed);
@@ -303,7 +484,6 @@ Json Json::Parse(const std::string& js)
 	}
 	return result;
 }
-
 
 Json& Json::operator=(const Json& other)
 {
@@ -690,4 +870,9 @@ const Json& Json::Iterator::Value() const
 		return *nextArrayEntry;
 	else
 		return nextObjectEntry->second;
+}
+
+Json::JsonArrayWrapper::JsonArrayWrapper(std::initializer_list<const Json> args)
+	:jArray(args)
+{
 }

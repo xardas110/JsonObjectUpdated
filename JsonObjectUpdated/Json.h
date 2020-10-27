@@ -11,6 +11,13 @@
 
 class Json
 {
+private:
+	struct JsonArrayWrapper
+	{
+		JsonArrayWrapper(std::initializer_list<const Json> args);
+		std::initializer_list<const Json> jArray;
+	};
+
 public:
 	enum Type { Null, Bool, Int, Float, String, Array, Object };
 
@@ -41,8 +48,9 @@ public:
 	Json(const std::string& str);
 	template<typename ARG, typename ... R>
 	Json(ARG arg, const R& ... rest); //Initializer list works too for array, but since I use it for objects then I cant do the same for arrays cuz of constructor parameters
-	//Json(const Json&...);
+	
 	Json(std::initializer_list<std::pair<const std::string, const Json>> args);
+	Json(JsonArrayWrapper args);
 	~Json() noexcept;
 
 	Json& operator=(const Json&);
@@ -75,8 +83,14 @@ public:
 	Json& Set(const std::string& key, const Json& value);
 	bool Contains(const std::string& key) const;
 	static Json JObject(std::initializer_list<std::pair<const std::string, const Json>> args);
-	static Json JArray(std::initializer_list<Json> args);
+	static Json JArray(std::initializer_list<const Json> args);
+	static size_t FindExt(const std::string& text, const std::string& delimiter);
 
+	void Save(const std::string& path);
+	Json Load(const std::string& path);
+
+	void Print() const;
+	
 	Iterator begin() const;
 	Iterator end() const;
 
@@ -86,6 +100,7 @@ public:
 	static const bool Compare(const std::map<std::string, Json>& a, const std::map<std::string, Json>& b);
 	
 private:
+	static void PrintS(std::string& text, size_t& offset, const Json& json);
 	static size_t FindFirstNotOf(const std::string& str, std::set<char> del, const bool bAsc);
 	void EllipArray(Json& self) {};
 	template<typename ARG, typename ... R>
@@ -132,6 +147,7 @@ private:
 		void ParseAsObject(const std::string& text);
 		void ParseAsArray(const std::string& text);
 		std::string ParseKV(const std::string& text, size_t& offset, const char delimiter);
+
 	};
 	std::unique_ptr<Var> var_;	
 };
