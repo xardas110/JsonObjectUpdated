@@ -3,12 +3,6 @@
 #include "Json.h"
 #include <ctime>
 
-std::set<char> WHITESPACE_CHARS1{
-	' ',
-	'\n',
-	'\t',
-	'\r'
-};
 int main()
 {
 	Json j(Json::Type::Object);

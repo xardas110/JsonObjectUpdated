@@ -304,7 +304,8 @@ void Json::Print() const
 
 void Json::PrintS(std::string& text, size_t& offset, const Json& json)
 {
-	size_t off = offset+2;
+	size_t off = offset;
+	size_t nextOffset = off + 2;
 	switch (json.GetType())
 	{
 	case Type::Null:
@@ -323,33 +324,27 @@ void Json::PrintS(std::string& text, size_t& offset, const Json& json)
 		text += '\"' + *json.var_->stringVal + '\"';
 		break;
 	case Type::Array:
-		text += '\n';
-		for (size_t i = 0; i < offset; i++) text.push_back(' ');
 		text += '[';
 		for (const auto& val : json)
-		{
+		{		
 			text += '\n';
-			for (size_t i = 0; i < off; i++) text.push_back(' ');
-			PrintS(text, off, val.Value()); text += ',';
+			for (size_t i = 0; i < off + 2; i++) text.push_back(' ');
+			PrintS(text, nextOffset, val.Value()); text += ",";
 		}
-		text += '\n';
-		for (size_t i = 0; i < offset; i++) text.push_back(' ');
-		text += ']';
-		offset += 2;
+		text += '\n'; for (size_t i = 0; i < off; i++) text.push_back(' '); text += "]";	
 		break;
 	case Type::Object:
 		text += '{';
 		for (auto& val : json)
 		{
 			text += '\n';
-			for (size_t i = 0; i < off; i++) text.push_back(' ');
+			for (size_t i = 0; i < off+2; i++) text.push_back(' ');
 			text += '\"' + val.Key() + '\"' + ": ";
-			PrintS(text, off, val.Value()); text += ',';
+			PrintS(text, nextOffset, val.Value()); text += ',';
 		}
-		text += '\n';
-		for (size_t i = 0; i < offset; i++) text.push_back(' ');
-		text += '}';
-		offset += 2;
+		if (text[text.length() - 1] == ',')
+			text.pop_back();
+		text += '\n'; for (size_t i = 0; i < off; i++) text.push_back(' ');	text += '}';
 		break;
 	default:
 		break;
